@@ -2,16 +2,19 @@ package com.mindorks.ridesharing.ui.maps
 
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Looper
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
+import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
-import com.google.maps.model.LatLng
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
 import com.mindorks.ridesharing.R
 import com.mindorks.ridesharing.data.network.NetworkService
 import com.mindorks.ridesharing.utils.PermissionUtils
@@ -25,7 +28,7 @@ class MapsActivity : AppCompatActivity(), MapsView, OnMapReadyCallback {
     }
 
     private lateinit var presenter: MapsPresenter
-    private lateinit var mMap: GoogleMap
+    private lateinit var googleMap: GoogleMap
 
     private var fusedLocationProviderClient: FusedLocationProviderClient? = null
     private lateinit var locationCallback: LocationCallback
@@ -43,6 +46,20 @@ class MapsActivity : AppCompatActivity(), MapsView, OnMapReadyCallback {
         presenter.onAttach(this)
     }
 
+    private fun moveCamera(latLng: LatLng) {
+        googleMap.moveCamera(CameraUpdateFactory.newLatLng(latLng))
+    }
+
+    private fun animateCamera(latLng: LatLng) {
+        val cameraPosition = CameraPosition.Builder().target(latLng).zoom(15.5f).build()
+        googleMap.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition))
+    }
+
+    private fun enableMyLocationMap() {
+        googleMap.setPadding(0, ViewUtils.dpToPx(48f), 0, 0)
+        googleMap.isMyLocationEnabled = true
+    }
+
     private fun setupLocationListener() {
         fusedLocationProviderClient = FusedLocationProviderClient(this)
         val locationRequest = LocationRequest().setInterval(2000).setFastestInterval(2000)
@@ -56,17 +73,26 @@ class MapsActivity : AppCompatActivity(), MapsView, OnMapReadyCallback {
                 if (currentLatLng == null) {
                     for (location in locationRequest.locations) {
                         if (currentLatLng == null) {
-                             currentLatLng = LatLng(location.latitude, location.longitude)
+                            currentLatLng = LatLng(location.latitude, location.longitude)
+                            enableMyLocationMap()
+                            moveCamera(currentLatLng!!)
+                            animateCamera(currentLatLng!!)
                         }
                     }
                 }
             }
         }
 
+        fusedLocationProviderClient?.requestLocationUpdates(
+            locationRequest,
+            locationCallback,
+            Looper.myLooper()
+        )
+
     }
 
     override fun onMapReady(googleMap: GoogleMap) {
-        mMap = googleMap
+        this.googleMap = googleMap
     }
 
     override fun onStart() {
@@ -75,7 +101,7 @@ class MapsActivity : AppCompatActivity(), MapsView, OnMapReadyCallback {
         if (PermissionUtils.isFineLocationGranted(this)) {
             if (PermissionUtils.isLocationEnabled(this)) {
                 //get location
-
+                setupLocationListener()
             } else {
                 PermissionUtils.showGPSNotEnabled(this)
             }
@@ -95,7 +121,7 @@ class MapsActivity : AppCompatActivity(), MapsView, OnMapReadyCallback {
                 if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     if (PermissionUtils.isLocationEnabled(this)) {
                         //get location
-
+                        setupLocationListener()
                     } else {
                         PermissionUtils.showGPSNotEnabled(this)
                     }
