@@ -3,9 +3,11 @@ package com.mindorks.ridesharing.ui.maps
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.os.Bundle
 import android.os.Looper
 import android.util.Log
+import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.gms.common.api.Status
@@ -24,6 +26,7 @@ import com.google.android.libraries.places.widget.AutocompleteActivity
 import com.google.android.libraries.places.widget.model.AutocompleteActivityMode
 import com.mindorks.ridesharing.R
 import com.mindorks.ridesharing.data.network.NetworkService
+import com.mindorks.ridesharing.utils.AnimationUtils
 import com.mindorks.ridesharing.utils.MapUtils
 import com.mindorks.ridesharing.utils.PermissionUtils
 import com.mindorks.ridesharing.utils.ViewUtils
@@ -46,7 +49,11 @@ class MapsActivity : AppCompatActivity(), MapsView, OnMapReadyCallback {
     private var currentLatLng: LatLng? = null
     private var pickUpLatLng: LatLng? = null
     private var dropLatLng: LatLng? = null
+    private var greyPolyLine: Polyline? = null
+    private var blackPolyLine: Polyline? = null
     private val nearByCarMarketList = arrayListOf<Marker>()
+    private var originMarker: Marker? = null
+    private var destinationMarker: Marker? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,6 +76,15 @@ class MapsActivity : AppCompatActivity(), MapsView, OnMapReadyCallback {
 
         dropTextView.setOnClickListener {
             launchLocationAutoCompleteActivity(DROP_REQUEST_CODE)
+        }
+
+        requestCabButton.setOnClickListener {
+            statusTextView.visibility = View.VISIBLE
+            statusTextView.text = getString(R.string.requesting_your_cab)
+            requestCabButton.isEnabled = false
+            pickUpTextView.isEnabled = false
+            dropTextView.isEnabled = false
+            presenter.requestCab(pickUpLatLng!!, dropLatLng!!)
         }
     }
 
@@ -99,9 +115,14 @@ class MapsActivity : AppCompatActivity(), MapsView, OnMapReadyCallback {
         googleMap.isMyLocationEnabled = true
     }
 
-    private fun setCurrentLocationAsPickup(){
+    private fun addOriginDestinationMarkerAndGet(latLng: LatLng): Marker {
+        val bitmapDescriptor = BitmapDescriptorFactory.fromBitmap(MapUtils.getDestinationBitmap())
+        return googleMap.addMarker(MarkerOptions().position(latLng).flat(true).icon(bitmapDescriptor))
+    }
+
+    private fun setCurrentLocationAsPickup() {
         pickUpLatLng = currentLatLng
-        pickUpTextView.text = "Current Location"
+        pickUpTextView.text = getString(R.string.current_location)
     }
 
     private fun setupLocationListener() {
@@ -136,6 +157,13 @@ class MapsActivity : AppCompatActivity(), MapsView, OnMapReadyCallback {
             Looper.myLooper()
         )
 
+    }
+
+    private fun checkAndShowRequestButton() {
+        if (pickUpLatLng != null && dropLatLng != null) {
+            requestCabButton.visibility = View.VISIBLE
+            requestCabButton.isEnabled = true
+        }
     }
 
     override fun onMapReady(googleMap: GoogleMap) {
@@ -198,6 +226,7 @@ class MapsActivity : AppCompatActivity(), MapsView, OnMapReadyCallback {
                         DROP_REQUEST_CODE -> {
                             dropTextView.text = place.name
                             dropLatLng = place.latLng
+                            checkAndShowRequestButton()
                         }
                     }
                 }
@@ -226,5 +255,47 @@ class MapsActivity : AppCompatActivity(), MapsView, OnMapReadyCallback {
             val nearbyCarMarker = addCarMarketAndGet(latLng)
             nearByCarMarketList.add(nearbyCarMarker)
         }
+    }
+
+    override fun informCabBooked() {
+        nearByCarMarketList.forEach {
+            it.remove()
+        }
+
+        nearByCarMarketList.clear()
+        requestCabButton.visibility = View.GONE
+        statusTextView.text = getString(R.string.your_cab_is_booked)
+    }
+
+    override fun showPath(latLngList: List<LatLng>) {
+        val builder = LatLngBounds.Builder()
+        for (latLng in latLngList) {
+            builder.include(latLng)
+        }
+        val bounds = builder.build()
+        googleMap.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 2))
+
+        val polylineOptions = PolylineOptions()
+        polylineOptions.color(Color.GRAY).width(5f).addAll(latLngList)
+        greyPolyLine = googleMap.addPolyline(polylineOptions)
+
+        val blackPolylineOptions = PolylineOptions()
+        polylineOptions.color(Color.BLACK).width(5f)
+        blackPolyLine = googleMap.addPolyline(blackPolylineOptions)
+
+        originMarker = addOriginDestinationMarkerAndGet(latLngList[0])
+        originMarker?.setAnchor(0.5f, 0.5f)
+
+        destinationMarker = addOriginDestinationMarkerAndGet(latLngList[latLngList.size - 1])
+        originMarker?.setAnchor(0.5f, 0.5f)
+
+        val polyLineAnimator = AnimationUtils.polyLineAnimator()
+        polyLineAnimator.addUpdateListener {valueAnimator ->
+            val percentValue = (valueAnimator.animatedValue as Int)
+            val index =  (greyPolyLine?.points!!.size) * (percentValue /100.0f).toInt()
+            blackPolyLine?.points = greyPolyLine?.points!!.subList(0, index)
+        }
+
+        polyLineAnimator.start()
     }
 }
