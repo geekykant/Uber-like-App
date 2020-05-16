@@ -54,6 +54,9 @@ class MapsActivity : AppCompatActivity(), MapsView, OnMapReadyCallback {
     private val nearByCarMarketList = arrayListOf<Marker>()
     private var originMarker: Marker? = null
     private var destinationMarker: Marker? = null
+    private var movingCabMarker: Marker? = null
+    private var previousLatLngFromServer: LatLng? = null
+    private var currentLatLngFromServer: LatLng? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -290,12 +293,45 @@ class MapsActivity : AppCompatActivity(), MapsView, OnMapReadyCallback {
         originMarker?.setAnchor(0.5f, 0.5f)
 
         val polyLineAnimator = AnimationUtils.polyLineAnimator()
-        polyLineAnimator.addUpdateListener {valueAnimator ->
+        polyLineAnimator.addUpdateListener { valueAnimator ->
             val percentValue = (valueAnimator.animatedValue as Int)
-            val index =  (greyPolyLine?.points!!.size) * (percentValue /100.0f).toInt()
+            val index = (greyPolyLine?.points!!.size) * (percentValue / 100.0f).toInt()
             blackPolyLine?.points = greyPolyLine?.points!!.subList(0, index)
         }
 
         polyLineAnimator.start()
+    }
+
+    override fun updateCabLocation(latLng: LatLng) {
+        if (movingCabMarker == null) {
+            movingCabMarker = addCarMarketAndGet(latLng)
+        }
+
+        if (previousLatLngFromServer == null) {
+            currentLatLngFromServer = latLng
+            previousLatLngFromServer = currentLatLngFromServer
+            movingCabMarker?.position = currentLatLngFromServer
+            movingCabMarker?.setAnchor(0.5f, 0.5f)
+            animateCamera(currentLatLngFromServer as LatLng)
+        } else {
+            previousLatLngFromServer = currentLatLngFromServer
+            currentLatLngFromServer = latLng
+
+            val valueAnimator = AnimationUtils.cabAnimator()
+            valueAnimator.addUpdateListener { va ->
+                if (currentLatLngFromServer != null && previousLatLngFromServer != null){
+                    val multiplier = va.animatedFraction
+                    val nextLocation = LatLng(
+                        multiplier * currentLatLngFromServer!!.latitude + (1-multiplier) * currentLatLngFromServer!!.latitude,
+                        multiplier * currentLatLngFromServer!!.longitude + (1-multiplier) * currentLatLngFromServer!!.longitude
+                    )
+
+                    movingCabMarker?.position = nextLocation
+                    movingCabMarker?.setAnchor(0.5f, 0.5f)
+                    animateCamera(nextLocation)
+                }
+            }
+            valueAnimator.start()
+        }
     }
 }
