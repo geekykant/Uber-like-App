@@ -10,8 +10,7 @@ Cab sharing App similar to Uber, Ola that uses Maps places &amp; direction API. 
 <br>
 
 <div>
-<img width="22%" src="https://i.imgur.com/VNwJ1Nt.png">
-<img width="22%" src="https://i.imgur.com/DHDiPRv.png">
-<img width="22%" src="https://i.imgur.com/t8G4jSq.png">
-<img width="22%" src="https://i.imgur.com/HTNwavK.png">
+<img width="27%" src="https://i.imgur.com/DHDiPRv.png">
+<img width="27%" src="https://i.imgur.com/t8G4jSq.png">
+<img width="27%" src="https://i.imgur.com/HTNwavK.png">
 </div>
