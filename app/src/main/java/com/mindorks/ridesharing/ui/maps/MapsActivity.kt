@@ -89,6 +89,8 @@ class MapsActivity : AppCompatActivity(), MapsView, OnMapReadyCallback {
             dropTextView.isEnabled = false
             presenter.requestCab(pickUpLatLng!!, dropLatLng!!)
         }
+
+        nextRideButton.setOnClickListener {reset()}
     }
 
     private fun launchLocationAutoCompleteActivity(requestCode: Int) {
@@ -169,6 +171,40 @@ class MapsActivity : AppCompatActivity(), MapsView, OnMapReadyCallback {
         }
     }
 
+    private fun reset(){
+        statusTextView.visibility = View.GONE
+        nextRideButton.visibility = View.GONE
+        nearByCarMarketList.forEach {
+            it.remove()
+        }
+        nearByCarMarketList.clear()
+        currentLatLngFromServer = null
+        previousLatLngFromServer = null
+        if(currentLatLng != null){
+            moveCamera(currentLatLng!!)
+            animateCamera(currentLatLng!!)
+            setCurrentLocationAsPickup()
+            presenter.requestNearbyCabs(currentLatLng!!)
+        }else{
+            pickUpTextView.text = ""
+        }
+
+        pickUpTextView.isEnabled = true
+        dropTextView.isEnabled = true
+        dropTextView.text = ""
+        movingCabMarker?.remove()
+        greyPolyLine?.remove()
+        blackPolyLine?.remove()
+        originMarker?.remove()
+        destinationMarker?.remove()
+        dropLatLng = null
+        greyPolyLine = null
+        blackPolyLine = null
+        originMarker = null
+        destinationMarker = null
+        movingCabMarker = null
+    }
+
     override fun onMapReady(googleMap: GoogleMap) {
         this.googleMap = googleMap
     }
@@ -237,7 +273,7 @@ class MapsActivity : AppCompatActivity(), MapsView, OnMapReadyCallback {
                 AutocompleteActivity.RESULT_ERROR -> {
                     //ping for error
                     val status: Status = Autocomplete.getStatusFromIntent(data!!)
-                    Log.d(TAG, "Error: " + status.statusMessage)
+                    Log.i(TAG, "Error: " + status.statusMessage)
                 }
 
                 AutocompleteActivity.RESULT_CANCELED -> {
@@ -249,6 +285,7 @@ class MapsActivity : AppCompatActivity(), MapsView, OnMapReadyCallback {
 
     override fun onDestroy() {
         presenter.onDetach()
+        fusedLocationProviderClient?.removeLocationUpdates(locationCallback)
         super.onDestroy()
     }
 
@@ -327,6 +364,10 @@ class MapsActivity : AppCompatActivity(), MapsView, OnMapReadyCallback {
                     )
 
                     movingCabMarker?.position = nextLocation
+                    val rotation = MapUtils.getRotation(previousLatLngFromServer!!, nextLocation)
+                    if (!rotation.isNaN()) {
+                        movingCabMarker?.rotation = rotation
+                    }
                     movingCabMarker?.setAnchor(0.5f, 0.5f)
                     animateCamera(nextLocation)
                 }
@@ -334,4 +375,42 @@ class MapsActivity : AppCompatActivity(), MapsView, OnMapReadyCallback {
             valueAnimator.start()
         }
     }
+
+    override fun informCabIsArriving() {
+        statusTextView.text = getString(R.string.your_cab_is_arriving)
+    }
+
+    override fun informCabArrived() {
+        statusTextView.text = getString(R.string.your_cab_has_arrived)
+        blackPolyLine?.remove()
+        greyPolyLine?.remove()
+        originMarker?.remove()
+        destinationMarker?.remove()
+    }
+
+    override fun informTripStart() {
+        statusTextView.text = getString(R.string.you_are_on_a_trip)
+        previousLatLngFromServer = null
+    }
+
+    override fun informTripEnd() {
+        statusTextView.text = getString(R.string.trip_end)
+        nextRideButton.visibility = View.VISIBLE
+        blackPolyLine?.remove()
+        greyPolyLine?.remove()
+        originMarker?.remove()
+        destinationMarker?.remove()
+    }
+
+    override fun showRoutesNoteAvailableError() {
+        val error = getString(R.string.route_not_available_choose_different_locations)
+        Toast.makeText(this, error, Toast.LENGTH_LONG).show()
+        reset()
+    }
+
+    override fun showDirectionApiFailedError(error: String) {
+        Toast.makeText(this, error, Toast.LENGTH_LONG).show()
+        reset()
+    }
+
 }

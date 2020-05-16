@@ -8,7 +8,7 @@ import com.mindorks.ridesharing.simulator.WebSocketListener
 import com.mindorks.ridesharing.utils.Constants
 import org.json.JSONObject
 
-class MapsPresenter (private val networkService: NetworkService): WebSocketListener {
+class MapsPresenter(private val networkService: NetworkService) : WebSocketListener {
 
     companion object {
         private const val TAG = "MapsPresenter"
@@ -17,26 +17,26 @@ class MapsPresenter (private val networkService: NetworkService): WebSocketListe
     private var view: MapsView? = null
     private lateinit var webSocket: WebSocket
 
-    fun onAttach(view: MapsView){
+    fun onAttach(view: MapsView) {
         this.view = view
         webSocket = networkService.createWebSocketListener(this)
         webSocket.connect()
     }
 
-    fun onDetach(){
+    fun onDetach() {
         webSocket.disconnect()
         view = null
     }
 
-    fun requestNearbyCabs(latLng: LatLng){
-        val jsonObject  = JSONObject()
+    fun requestNearbyCabs(latLng: LatLng) {
+        val jsonObject = JSONObject()
         jsonObject.put(Constants.TYPE, Constants.NEAR_BY_CABS)
         jsonObject.put(Constants.LAT, latLng.latitude)
         jsonObject.put(Constants.LNG, latLng.longitude)
         webSocket.sendMessage(jsonObject.toString())
     }
 
-    fun requestCab(pickUpLatLng: LatLng, dropLatLng: LatLng){
+    fun requestCab(pickUpLatLng: LatLng, dropLatLng: LatLng) {
         val jsonObject = JSONObject()
         jsonObject.put(Constants.TYPE, Constants.REQUEST_CAB)
         jsonObject.put("pickUpLat", pickUpLatLng.latitude)
@@ -47,28 +47,28 @@ class MapsPresenter (private val networkService: NetworkService): WebSocketListe
     }
 
     override fun onConnect() {
-        Log.d(TAG,"onConnect" )
+        Log.d(TAG, "onConnect")
     }
 
     override fun onMessage(data: String) {
-        Log.d(TAG,"onMessage: $data" )
+        Log.d(TAG, "onMessage: $data")
 
         val jsonObject = JSONObject(data)
-        when(jsonObject.getString(Constants.TYPE)){
+        when (jsonObject.getString(Constants.TYPE)) {
             Constants.NEAR_BY_CABS -> {
                 handleOnMessageNearbyCabs(jsonObject)
             }
 
             Constants.CAB_BOOKED -> view?.informCabBooked()
 
-            Constants.PICKUP_PATH -> {
+            Constants.PICKUP_PATH, Constants.TRIP_PATH -> {
                 val jsonArray = jsonObject.getJSONArray("path")
                 val pickUpPath = arrayListOf<LatLng>()
 
-                for(i in 0 until jsonArray.length()){
+                for (i in 0 until jsonArray.length()) {
                     val lat = (jsonArray.get(i) as JSONObject).getDouble(Constants.LAT)
                     val lng = (jsonArray.get(i) as JSONObject).getDouble(Constants.LNG)
-                    val latLng = LatLng(lat,lng)
+                    val latLng = LatLng(lat, lng)
                     pickUpPath.add(latLng)
                 }
 
@@ -81,6 +81,22 @@ class MapsPresenter (private val networkService: NetworkService): WebSocketListe
 
                 view?.updateCabLocation(LatLng(latCurrent, lngCurrent))
             }
+
+            Constants.CAB_IS_ARRIVING -> {
+                view?.informCabIsArriving()
+            }
+
+            Constants.CAB_ARRIVED -> {
+                view?.informCabArrived()
+            }
+
+            Constants.TRIP_START -> {
+                view?.informTripStart()
+            }
+
+            Constants.TRIP_END -> {
+                view?.informTripEnd()
+            }
         }
     }
 
@@ -88,11 +104,11 @@ class MapsPresenter (private val networkService: NetworkService): WebSocketListe
         val nearByCabLocations = arrayListOf<LatLng>()
         val jsonArray = jsonObject.getJSONArray(Constants.LOCATIONS)
 
-        for(i in 0 until jsonArray.length()){
+        for (i in 0 until jsonArray.length()) {
             val lat = (jsonArray.get(i) as JSONObject).getDouble(Constants.LAT)
             val lng = (jsonArray.get(i) as JSONObject).getDouble(Constants.LNG)
 
-            val latLng = LatLng(lat,lng)
+            val latLng = LatLng(lat, lng)
             nearByCabLocations.add(latLng)
         }
 
@@ -100,11 +116,26 @@ class MapsPresenter (private val networkService: NetworkService): WebSocketListe
     }
 
     override fun onDisconnect() {
-        Log.d(TAG,"onDisconnect" )
+        Log.d(TAG, "onDisconnect")
     }
 
     override fun onError(error: String) {
-        Log.d(TAG,"onError: $error" )
+        Log.d(TAG, "onError: $error")
+        val jsonObject = JSONObject(error)
+        when (jsonObject.getString(Constants.TYPE)) {
+            Constants.ROUTES_NOT_AVAILABLE -> {
+                view?.showRoutesNoteAvailableError()
+            }
+
+            Constants.DIRECTION_API_FAILED -> {
+                view?.showDirectionApiFailedError(
+                    "Direction API Failed : " + jsonObject.getString(
+                        Constants.ERROR
+                    )
+                )
+            }
+        }
+
     }
 
 
