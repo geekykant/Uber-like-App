@@ -5,6 +5,7 @@ Cab sharing App similar to Uber, Ola that uses Maps places &amp; direction API. 
 - Live NearbyCabs fetching
 - Animations and Cars resources markers
 - Book and Animate the ride from location to location
+- Uses MVP Architecture, best recommended software design pattern 
 
 <br>
 
